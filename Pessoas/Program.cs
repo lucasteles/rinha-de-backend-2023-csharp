@@ -3,9 +3,7 @@ using Npgsql;
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
-builder.Configuration.AddEnvironmentVariables();
-var settings = builder.Configuration.Get<AppSettings>() ?? new();
-builder.Services.ConfigureServices(settings);
+builder.Services.ConfigureServices();
 
 var app = builder.Build();
 app.UseOutputCache();
@@ -29,9 +27,6 @@ pessoas.MapPost("/",
                 if (novaPessoa.Stack[i] is not {Length: > 0 and <= 32})
                     return Results.UnprocessableEntity();
 
-        if (await cache.Existe(novaPessoa.Apelido))
-            return Results.UnprocessableEntity();
-
         Pessoa pessoa = new(
             Id: NewId.NextSequentialGuid(),
             Apelido: novaPessoa.Apelido,
@@ -39,6 +34,9 @@ pessoas.MapPost("/",
             Nascimento: nascimento,
             Stack: novaPessoa.Stack
         );
+
+        if (!await cache.TentaReservar(pessoa))
+            return Results.UnprocessableEntity();
 
         await Task.WhenAll(
             queue.Push(pessoa),
@@ -53,25 +51,25 @@ pessoas.MapGet("/{id}", async (Cache cache, Guid id) =>
         ? Results.NotFound()
         : Results.Ok(pessoa));
 
-pessoas.MapGet("/", (Repositorio db, string t) =>
+pessoas.MapGet("/", (CancellationToken ct, Repositorio db, string t) =>
     string.IsNullOrWhiteSpace(t)
         ? Results.BadRequest()
-        : Results.Ok(db.Buscar(t)));
+        : Results.Ok(db.Buscar(t, 50, ct)));
 
-app.MapGet("contagem-pessoas", (Repositorio repo) => repo.Contar()).CacheOutput(x => x.NoCache())
+app.MapGet("contagem-pessoas", async (CancellationToken ct, Repositorio repo) =>
+    {
+        await Task.Delay(TimeSpan.FromSeconds(4));
+        return await repo.Contar(ct);
+    })
+    .CacheOutput(x => x.NoCache())
     .ShortCircuit();
 
-app.MapGet("status", async (NpgsqlDataSource dataSource) =>
+app.MapGet("status", async (CancellationToken ct, NpgsqlDataSource dataSource) =>
     {
         await using var cmd = dataSource.CreateCommand("SELECT version()");
-        return $"{Environment.MachineName} => {await cmd.ExecuteScalarAsync()}";
-    }).CacheOutput(x => x.NoCache())
-    .ShortCircuit();
-
-app.MapPost("reset", async (NpgsqlDataSource dataSource) =>
-    {
-        await using var cmd = dataSource.CreateCommand("TRUNCATE TABLE pessoas");
-    }).CacheOutput(x => x.NoCache())
+        return $"{Environment.MachineName} => {await cmd.ExecuteScalarAsync(ct)}";
+    })
+    .CacheOutput(x => x.NoCache())
     .ShortCircuit();
 
 await app.GaranteRedisQueue();

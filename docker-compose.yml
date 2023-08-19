@@ -5,7 +5,6 @@ services:
     image: lucasteles/rinha-de-backend
     build:
       dockerfile: Dockerfile
-    hostname: api1
     depends_on:
       db:
         condition: service_healthy
@@ -30,7 +29,6 @@ services:
     image: lucasteles/rinha-de-backend
     build:
       dockerfile: Dockerfile
-    hostname: api2
     depends_on:
       db:
         condition: service_healthy
@@ -53,7 +51,7 @@ services:
 
   db:
     image: postgres:latest
-    command: postgres -c 'max_connections=500' -c 'shared_buffers=256'
+    command: postgres -c 'max_connections=200' -c 'shared_buffers=512MB'
     networks:
       - api-network
     ports:
@@ -63,8 +61,8 @@ services:
       POSTGRES_PASSWORD: postgres
     healthcheck:
       test: pg_isready -U postgres
-      interval: 5s
-      timeout: 5s
+      interval: 10s
+      timeout: 20s
       retries: 5
     volumes:
       - ./ddl.sql:/docker-entrypoint-initdb.d/ddl.sql
@@ -82,8 +80,8 @@ services:
       - "6379:6379"
     healthcheck:
       test: redis-cli ping
-      interval: 5s
-      timeout: 5s
+      interval: 10s
+      timeout: 20s
       retries: 5
     deploy:
       resources:
@@ -107,6 +105,22 @@ services:
         limits:
           cpus: '0.25'
           memory: '0.1GB'
+
+  gatling:
+    image: gatling:local
+    build:
+      context: stress-test
+      dockerfile: Dockerfile
+    depends_on:
+      - api1
+      - api2
+    networks:
+      - api-network
+    volumes:
+      - ./stress-test:/opt/stress-test
+    command:
+      sh -c "/opt/stress-test/run-test.sh"
+
 
 networks:
   api-network:
