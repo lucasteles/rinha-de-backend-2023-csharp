@@ -23,8 +23,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: '0.4GB'
+          cpus: '0.25'
+          memory: '0.6GB'
 
   api2:
     image: lucasteles/rinha-de-backend
@@ -48,8 +48,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: '0.4GB'
+          cpus: '0.25'
+          memory: '0.6GB'
 
   db:
     image: postgres:latest
@@ -67,7 +67,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
+          cpus: '0.65'
           memory: '1.2GB'
 
   redis:
@@ -83,7 +83,7 @@ services:
       resources:
         limits:
           cpus: '0.1'
-          memory: '0.6GB'
+          memory: '0.5GB'
 
   nginx:
     image: nginx:latest
@@ -99,8 +99,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
-          memory: '0.4GB'
+          cpus: '0.25'
+          memory: '0.1GB'
 
 networks:
   api-network:
