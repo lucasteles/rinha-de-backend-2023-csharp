@@ -12,25 +12,33 @@ public static class Db
     const string DbName = "pessoas_db";
 
     public static string ConnectionString { get; } =
-        $"Host={DbHost};Username=postgres;Password=postgres;Database={DbName}";
+        new NpgsqlConnectionStringBuilder
+        {
+            Host = DbHost,
+            Username = "postgres",
+            Password = "postgres",
+            Database = DbName,
+            MaxPoolSize = 200,
+            NoResetOnClose = true,
+            Enlist = false,
+        }.ToString();
 
     public static readonly NpgsqlDataSource DataSource = NpgsqlDataSource.Create(ConnectionString);
+
 
     public const string InsertPessoaCommand =
         """
         INSERT INTO
-        pessoas (id, apelido, nome, nascimento, stack)
-        VALUES ($1, $2, $3, $4, $5) ON CONFLICT (apelido) DO NOTHING
+        pessoas (id, apelido, nome, nascimento, stack, meta)
+        VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (apelido) DO NOTHING
         """;
 
     public const string QueryOne = "SELECT * FROM pessoas WHERE id = $1";
 
     public const string QueryMany =
         """
-        SELECT * FROM pessoas
-        WHERE apelido LIKE '%' || $1 || '%'
-        or nome LIKE '%' || $1 || '%'
-        or EXISTS (SELECT FROM unnest(stack) elem WHERE  elem LIKE '%' || $1 || '%' )
+        SELECT id, apelido, nome, nascimento, stack FROM pessoas
+        WHERE meta LIKE '%' || $1 || '%'
         LIMIT 50
         """;
 
@@ -49,8 +57,10 @@ public static class Db
                 apelido varchar(32) UNIQUE,
                 nome varchar(100) NOT NULL,
                 nascimento date NOT NULL,
-                stack varchar(32)[] NULL
+                stack varchar(32)[] NULL,
+                meta text NULL
             );
+            CREATE INDEX IF NOT EXISTS busca_pessoa_index ON pessoas (meta text_pattern_ops);
             COMMIT;
             """
         );
@@ -67,6 +77,7 @@ public static class Db
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
 
         await using var cmd = dataSource.CreateCommand($"CREATE DATABASE {DbName}");
+
         try
         {
             await cmd.ExecuteNonQueryAsync();

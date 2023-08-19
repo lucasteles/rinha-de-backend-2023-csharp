@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using MassTransit;
@@ -33,21 +34,32 @@ pessoas.MapPost("/", async (PessoaIn pessoa) =>
         || !DateOnly.TryParse(pessoa.Nascimento, out var nascimento))
         return Results.UnprocessableEntity();
 
+    StringBuilder meta = new();
+
     if (pessoa.Stack is not null)
         for (var i = 0; i < pessoa.Stack.Length; i++)
-            if (pessoa.Stack[i] is not { Length: > 0 and <= 32 })
+        {
+            if (pessoa.Stack[i] is not {Length: > 0 and <= 32})
                 return Results.UnprocessableEntity();
+
+            meta.Append(pessoa.Stack[i]);
+        }
 
     var id = NewId.NextSequentialGuid();
 
     await using var cmd = Db.DataSource.CreateCommand(Db.InsertPessoaCommand);
-    cmd.Parameters.Add(new NpgsqlParameter<Guid> { Value = id });
-    cmd.Parameters.Add(new NpgsqlParameter<string> { Value = pessoa.Apelido });
-    cmd.Parameters.Add(new NpgsqlParameter<string> { Value = pessoa.Nome });
-    cmd.Parameters.Add(new NpgsqlParameter<DateOnly> { Value = nascimento });
+    cmd.Parameters.Add(new NpgsqlParameter<Guid> {Value = id});
+    cmd.Parameters.Add(new NpgsqlParameter<string> {Value = pessoa.Apelido});
+    cmd.Parameters.Add(new NpgsqlParameter<string> {Value = pessoa.Nome});
+    cmd.Parameters.Add(new NpgsqlParameter<DateOnly> {Value = nascimento});
     cmd.Parameters.Add(new NpgsqlParameter<string[]?>
-    // ReSharper disable once BitwiseOperatorOnEnumWithoutFlags
-    { Value = pessoa.Stack, NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Varchar });
+        // ReSharper disable once BitwiseOperatorOnEnumWithoutFlags
+        {Value = pessoa.Stack, NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Varchar});
+
+    meta.Append(pessoa.Apelido);
+    meta.Append(pessoa.Nome);
+
+    cmd.Parameters.Add(new NpgsqlParameter<string> {Value = meta.ToString()});
 
     var dbResult = await cmd.ExecuteNonQueryAsync();
 
@@ -60,7 +72,7 @@ pessoas.MapPost("/", async (PessoaIn pessoa) =>
 pessoas.MapGet("/{id}", async (Guid id) =>
 {
     await using var cmd = Db.DataSource.CreateCommand(Db.QueryOne);
-    cmd.Parameters.Add(new NpgsqlParameter<Guid> { Value = id });
+    cmd.Parameters.Add(new NpgsqlParameter<Guid> {Value = id});
     await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SequentialAccess);
 
     if (!reader.HasRows)
@@ -74,7 +86,7 @@ pessoas.MapGet("/{id}", async (Guid id) =>
 pessoas.MapGet("/", async (string t) =>
 {
     await using var cmd = Db.DataSource.CreateCommand(Db.QueryMany);
-    cmd.Parameters.Add(new NpgsqlParameter<string> { Value = t });
+    cmd.Parameters.Add(new NpgsqlParameter<string> {Value = t});
     var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SequentialAccess);
 
     return string.IsNullOrWhiteSpace(t) ? Results.BadRequest() : Results.Ok(ReadAllAsync(reader));
