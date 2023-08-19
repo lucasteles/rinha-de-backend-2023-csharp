@@ -13,6 +13,9 @@ RUN dotnet publish \
 FROM mcr.microsoft.com/dotnet/runtime-deps:8.0-preview-alpine-amd64 as final
 
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV DB_HOST=host.docker.internal
+ENV CACHE_HOST=host.docker.internal:6379
+
 WORKDIR /app
 COPY --from=build /app ./
 

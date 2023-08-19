@@ -53,9 +53,11 @@ services:
 
   db:
     image: postgres:latest
-    command: postgres -c 'max_connections=600' -c 'shared_buffers=312'
+    command: postgres -c 'max_connections=500' -c 'shared_buffers=256'
     networks:
       - api-network
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: pessoas_db
       POSTGRES_PASSWORD: postgres
@@ -64,6 +66,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    volumes:
+      - ./ddl.sql:/docker-entrypoint-initdb.d/ddl.sql
     deploy:
       resources:
         limits:
@@ -74,6 +78,8 @@ services:
     image: redis
     networks:
       - api-network
+    ports:
+      - "6379:6379"
     healthcheck:
       test: redis-cli ping
       interval: 5s
