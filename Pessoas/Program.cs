@@ -56,11 +56,21 @@ pessoas.MapGet("/", (CancellationToken ct, Repositorio db, string t) =>
         ? Results.BadRequest()
         : Results.Ok(db.Buscar(t, 50, ct)));
 
-app.MapGet("contagem-pessoas", async (CancellationToken ct, Repositorio repo) =>
-    {
-        await Task.Delay(TimeSpan.FromSeconds(4));
-        return await repo.Contar(ct);
-    })
+app.MapGet("contagem-pessoas", async (
+        CancellationToken ct, 
+        Repositorio repo, 
+        Queue queue, 
+        ILogger<Program> logger) =>
+        {
+            do
+            {
+                logger.LogInformation("Waiting to complete!");
+                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            }
+            while (await queue.HasMessages());
+
+            return await repo.Contar(ct);
+        })
     .CacheOutput(x => x.NoCache())
     .ShortCircuit();
 

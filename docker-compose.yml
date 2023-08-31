@@ -15,6 +15,9 @@ services:
     environment:
       DB_HOST: db
       CACHE_HOST: redis:6379
+      DOTNET_TieredPGO: 1
+      DOTNET_ReadyToRun: 0
+      DOTNET_TC_QuickJitForLoops: 1
     networks:
       - api-network
     ports:
@@ -23,7 +26,7 @@ services:
       resources:
         limits:
           cpus: '0.25'
-          memory: '0.6GB'
+          memory: '0.5GB'
 
   api2:
     image: lucasteles/rinha-de-backend
@@ -39,6 +42,9 @@ services:
     environment:
       DB_HOST: db
       CACHE_HOST: redis:6379
+      DOTNET_TieredPGO: 1
+      DOTNET_ReadyToRun: 0
+      DOTNET_TC_QuickJitForLoops: 1
     networks:
       - api-network
     ports:
@@ -47,11 +53,11 @@ services:
       resources:
         limits:
           cpus: '0.25'
-          memory: '0.6GB'
+          memory: '0.5GB'
 
   db:
     image: postgres:latest
-    command: postgres -c 'max_connections=200' -c 'shared_buffers=512MB'
+    command: postgres -c 'max_connections=200' -c 'shared_buffers=256MB' -c 'synchronous_commit=off' -c 'fsync=off' -c 'full_page_writes=off'
     networks:
       - api-network
     ports:
@@ -104,7 +110,7 @@ services:
       resources:
         limits:
           cpus: '0.25'
-          memory: '0.1GB'
+          memory: '0.3GB'
 
   gatling:
     image: gatling:local

@@ -20,10 +20,10 @@ public sealed class Queue(IDatabase db)
         });
     }
 
-    public async Task<IReadOnlyList<NovaPessoaMsg>?> TryRead()
+    public async Task<IReadOnlyList<NovaPessoaMsg>?> TryRead(int count = 100)
     {
         var entries =
-            await db.StreamReadGroupAsync(StreamName, GroupName, Environment.MachineName, ">", 100);
+            await db.StreamReadGroupAsync(StreamName, GroupName, Environment.MachineName, ">");
 
         if (entries.Length is 0)
             return null;
@@ -47,6 +47,12 @@ public sealed class Queue(IDatabase db)
         }
 
         return resultado;
+    }
+
+    public async Task<bool> HasMessages()
+    {
+        var pending = await db.StreamPendingAsync(StreamName, GroupName);
+        return pending.PendingMessageCount > 0;
     }
 
     public async Task Ack(RedisValue id) =>

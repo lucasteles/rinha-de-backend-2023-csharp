@@ -2,11 +2,13 @@ using System.Threading.Channels;
 using Npgsql;
 using StackExchange.Redis;
 
-public sealed class InserirPessoasJob(IServiceProvider provider, ILogger<InserirPessoasJob> logger) : BackgroundService
+public sealed class InserirPessoasJob
+    (IServiceProvider provider, ILogger<InserirPessoasJob> logger) : BackgroundService
 {
-    const int MaxQueueBuffer = 500;
-    const int MaxConcurrency = 4;
-    static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(2);
+    const int MaxConcurrency = 10;
+    const int MaxQueueBuffer = 10_000;
+
+    static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -30,17 +32,21 @@ public sealed class InserirPessoasJob(IServiceProvider provider, ILogger<Inserir
         do
             try
             {
-                await channel.WaitToWriteAsync(ct);
+                await channel.WaitToWriteAsync(ct).ConfigureAwait(false);
                 logger.LogDebug("Polling messages...");
 
-                var messages = await queue.TryRead();
+                var messages = await queue.TryRead(MaxQueueBuffer).ConfigureAwait(false);
 
                 if (messages is null)
                     continue;
 
-                logger.LogDebug("Received {MessagesCount} messages", messages.Count);
+                logger.LogInformation("Received {MessagesCount} messages [{Thread}]",
+                    messages.Count, Environment.CurrentManagedThreadId);
 
-                await Task.WhenAll(messages.Select(m => channel.WriteAsync(m, ct).AsTask()));
+                await Task.WhenAll(messages.Select(m =>
+                        channel.WriteAsync(m, ct)
+                            .AsTask()))
+                    .ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -64,7 +70,7 @@ public sealed class InserirPessoasJob(IServiceProvider provider, ILogger<Inserir
 
             while (true)
             {
-                await channel.Reader.WaitToReadAsync(ct);
+                await channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false);
                 msgLidas.Clear();
                 pessoasNovas.Clear();
                 msgIds.Clear();
@@ -99,9 +105,8 @@ public sealed class InserirPessoasJob(IServiceProvider provider, ILogger<Inserir
             }
         }
 
-        var tasks = Enumerable
+        await Task.WhenAll(Enumerable
             .Range(0, MaxConcurrency)
-            .Select(_ => Task.Run(TopicConsumer, ct));
-        await Task.WhenAll(tasks);
+            .Select(_ => Task.Run(TopicConsumer, ct)));
     }
 }
